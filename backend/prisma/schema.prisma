@@ -31,6 +31,7 @@ model User {
   orders                 Order[]              @relation("OrderCustomer")
   paymentConfirmedOrders Order[]              @relation("OrderPaymentConfirmedBy")
   statusHistoryChanges   OrderStatusHistory[]
+  wishlistItems          WishlistItem[]
 }
 
 model Category {
@@ -81,12 +82,26 @@ model Product {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
 
   @@index([categoryId])
   @@index([brandId])
   @@index([isActive])
+}
+
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
 }
 
 model Cart {

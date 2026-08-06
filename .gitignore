@@ -1,0 +1,15 @@
+node_modules/
+backend/node_modules/
+backend/.env
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# frontend has its own independent git repo — never track it from root
+frontend/
+
+# local Claude Code settings, not project source
+.claude/
+
+# OS/editor
+.DS_Store
+Thumbs.db

@@ -14,6 +14,7 @@ const bannerRoutes = require('./routes/bannerRoutes');
 const brandRoutes = require('./routes/brandRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const couponRoutes = require('./routes/couponRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/coupons', couponRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -38,4 +38,4 @@ async function getDashboardStats() {
   };
 }
 
-module.exports = { getDashboardStats };
+module.exports = { getDashboardStats, CONFIRMED_STATUSES };

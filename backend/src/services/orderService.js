@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const HttpError = require('../errors/HttpError');
 const generateOrderNumber = require('../utils/orderNumber');
+const couponService = require('./couponService');
 const { ORDER_STATUSES, NEXT_STATUS, CANCELLABLE_FROM } = require('../constants/orderStatus');
 
 const ADMIN_CUSTOMER_SELECT_LIST = { name: true, email: true, phone: true };
@@ -17,7 +18,7 @@ const ADMIN_CUSTOMER_SELECT_DETAIL = {
 
 const ORDER_INCLUDE = { items: true, statusHistory: { orderBy: { changedAt: 'asc' } } };
 
-async function createOrder(user, { phone, address }) {
+async function createOrder(user, { phone, address, couponCode }) {
   const customerPhone = phone || user.phone;
   if (!customerPhone) {
     throw new HttpError(400, 'A contact phone number is required');
@@ -30,6 +31,19 @@ async function createOrder(user, { phone, address }) {
     });
     if (!cart || cart.items.length === 0) {
       throw new HttpError(400, 'Your cart is empty');
+    }
+
+    // Validate the coupon (if any) against the pre-decrement subtotal, inside
+    // this same transaction, before touching stock. This runs alongside — not
+    // instead of — the atomic stock check-and-decrement loop below; a failure
+    // here or there rolls back everything identically.
+    const preSubtotal = cart.items.reduce((sum, i) => sum + Number(i.product.price) * i.quantity, 0);
+    let coupon = null;
+    let discountAmount = 0;
+    if (couponCode) {
+      const result = await couponService.findValidCoupon(couponCode, preSubtotal, tx);
+      coupon = result.coupon;
+      discountAmount = result.discountAmount;
     }
 
     const itemsData = [];
@@ -59,7 +73,8 @@ async function createOrder(user, { phone, address }) {
       });
     }
 
-    const totalAmount = itemsData.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+    const subtotalAmount = itemsData.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+    const totalAmount = subtotalAmount - discountAmount;
 
     const created = await tx.order.create({
       data: {
@@ -72,7 +87,13 @@ async function createOrder(user, { phone, address }) {
         shipCity: address?.city ?? user.addressCity ?? '',
         shipState: address?.state ?? user.addressState ?? '',
         shipPincode: address?.pincode ?? user.addressPincode ?? '',
+        subtotalAmount,
+        discountAmount,
+        taxAmount: 0,
+        shippingAmount: 0,
         totalAmount,
+        couponId: coupon?.id ?? null,
+        couponCode: coupon?.code ?? '',
         status: 'Pending Confirmation',
         whatsappSentAt: new Date(),
         items: { create: itemsData },

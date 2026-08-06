@@ -12,7 +12,12 @@ function baseView(order) {
       quantity: item.quantity,
       price: toNumber(item.price),
     })),
+    subtotalAmount: toNumber(order.subtotalAmount),
+    discountAmount: toNumber(order.discountAmount),
+    taxAmount: toNumber(order.taxAmount),
+    shippingAmount: toNumber(order.shippingAmount),
     totalAmount: toNumber(order.totalAmount),
+    couponCode: order.couponCode || '',
     status: order.status,
     statusHistory: (order.statusHistory || []).map((h) => ({
       status: h.status,

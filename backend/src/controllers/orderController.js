@@ -1,6 +1,8 @@
 const orderService = require('../services/orderService');
 const orderPresenter = require('../presenters/orderPresenter');
 const buildWhatsappLink = require('../utils/whatsapp');
+const invoiceService = require('../services/invoiceService');
+const { streamInvoicePdf } = require('../services/pdfInvoiceService');
 
 async function createOrder(req, res, next) {
   try {
@@ -57,6 +59,28 @@ async function updateOrderStatus(req, res, next) {
   }
 }
 
+async function downloadInvoiceMine(req, res, next) {
+  try {
+    const { order, invoice } = await invoiceService.getInvoiceForOrder(req.params.id, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber}.pdf"`);
+    streamInvoicePdf(res, { order, invoice });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function downloadInvoiceAdmin(req, res, next) {
+  try {
+    const { order, invoice } = await invoiceService.getInvoiceForOrder(req.params.id, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber}.pdf"`);
+    streamInvoicePdf(res, { order, invoice });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createOrder,
   getMyOrders,
@@ -64,4 +88,6 @@ module.exports = {
   listOrdersAdmin,
   getOrderByIdAdmin,
   updateOrderStatus,
+  downloadInvoiceMine,
+  downloadInvoiceAdmin,
 };

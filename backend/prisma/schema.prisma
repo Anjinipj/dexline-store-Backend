@@ -174,10 +174,19 @@ model Order {
 
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
+  invoice       Invoice?
 
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  orderId       String   @unique
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  invoiceNumber String   @unique
+  issuedAt      DateTime @default(now())
 }
 
 model OrderItem {

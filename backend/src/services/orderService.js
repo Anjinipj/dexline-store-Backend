@@ -203,6 +203,24 @@ async function updateOrderStatus(id, status, adminId) {
       }
     }
 
+    if (status === 'Payment Confirmed') {
+      // Reserve a sequential invoice number the moment payment is confirmed,
+      // atomically with the status update — additive to this transaction, no
+      // change to the restock-on-cancel logic above. Guarded with findUnique
+      // in case this transition is ever re-entered (defense-in-depth; the
+      // state machine already prevents re-entering "Payment Confirmed" once left).
+      const existingInvoice = await tx.invoice.findUnique({ where: { orderId: id } });
+      if (!existingInvoice) {
+        const [{ nextval }] = await tx.$queryRaw`SELECT nextval('invoice_number_seq') as nextval`;
+        await tx.invoice.create({
+          data: {
+            orderId: id,
+            invoiceNumber: `INV-${new Date().getFullYear()}-${String(nextval).padStart(6, '0')}`,
+          },
+        });
+      }
+    }
+
     return result;
   });
 

@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  admin
+}
+
+model User {
+  id             String   @id @default(uuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  phone          String   @default("")
+  addressLine1   String   @default("")
+  addressLine2   String   @default("")
+  addressCity    String   @default("")
+  addressState   String   @default("")
+  addressPincode String   @default("")
+  role           Role     @default(customer)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  cart                   Cart?
+  orders                 Order[]              @relation("OrderCustomer")
+  paymentConfirmedOrders Order[]              @relation("OrderPaymentConfirmedBy")
+  statusHistoryChanges   OrderStatusHistory[]
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  description String    @default("")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  price          Decimal  @db.Decimal(10, 2)
+  compareAtPrice Decimal? @db.Decimal(10, 2)
+  images         String[] @default([])
+  description    String   @default("")
+  stock          Int      @default(0)
+  isActive       Boolean  @default(true)
+  isFeatured     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([isActive])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(1)
+
+  @@unique([cartId, productId])
+  @@index([productId])
+}
+
+model Order {
+  id                   String    @id @default(uuid())
+  orderNumber          String    @unique
+  customerId           String
+  customer             User      @relation("OrderCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  customerName         String
+  customerPhone        String
+  shipLine1            String    @default("")
+  shipLine2            String    @default("")
+  shipCity             String    @default("")
+  shipState            String    @default("")
+  shipPincode          String    @default("")
+  status               String    @default("Pending Confirmation")
+  totalAmount          Decimal   @db.Decimal(10, 2)
+  whatsappSentAt       DateTime?
+  paymentConfirmedAt   DateTime?
+  paymentConfirmedById String?
+  paymentConfirmedBy   User?     @relation("OrderPaymentConfirmedBy", fields: [paymentConfirmedById], references: [id], onDelete: SetNull)
+  notes                String    @default("")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  quantity  Int
+  image     String   @default("")
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderStatusHistory {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      String
+  changedAt   DateTime @default(now())
+  changedById String?
+  changedBy   User?    @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model Banner {
+  id          String   @id @default(uuid())
+  image       String
+  badge       String   @default("")
+  title       String
+  description String   @default("")
+  buttonText  String   @default("Shop Now")
+  linkHref    String   @default("/#catalog")
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -1,14 +1,16 @@
 # Dexline Store — Backend API
 
-Express + MongoDB (Mongoose) API for Dexline Store, with JWT auth for customers and admins.
+Express + PostgreSQL (Prisma) API for Dexline Store, with JWT auth for customers and admins.
 
 ## Setup
 
 ```bash
+docker compose up -d postgres   # from the repo root — starts local Postgres
 npm install
 cp .env.example .env
-# set MONGO_URI, JWT_SECRET, WHATSAPP_NUMBER (digits only, country code first, e.g. 91XXXXXXXXXX)
-npm run seed   # optional: creates an admin user + sample categories/products
+# set DATABASE_URL, JWT_SECRET, WHATSAPP_NUMBER (digits only, country code first, e.g. 91XXXXXXXXXX)
+npm run migrate:deploy          # applies migrations to the database
+npm run seed                    # optional: creates an admin user + sample categories/products
 npm run dev
 ```
 
@@ -33,9 +35,17 @@ without needing to change the route or frontend contract — it only cares about
 ## Order status flow
 
 `Pending Confirmation → Payment Confirmed → Processing → Shipped → Delivered`, with `Cancelled` reachable
-from any state before `Shipped`. Enforced server-side in `src/controllers/orderController.js`. Placing an
-order decrements product stock; cancelling restores it.
+from any state before `Shipped`. Enforced server-side in `src/services/orderService.js`. Placing an order
+atomically checks and decrements product stock inside a database transaction (so two concurrent checkouts
+can never both succeed on the last unit); cancelling restores it, also transactionally.
 
-## Data models
+## Architecture
 
-See `src/models/` — `User`, `Category`, `Product`, `Cart`, `Order`.
+`routes/` → `controllers/` (thin: parse request, call service, call presenter) → `services/` (business logic,
+talk to Prisma directly) → Postgres. `presenters/` reshape Prisma records into the wire format the frontend
+expects — notably renaming Prisma's `id` to `_id` and converting `Decimal` fields to plain numbers.
+
+## Data model
+
+See `prisma/schema.prisma` — `User`, `Category`, `Product`, `Cart`/`CartItem`, `Order`/`OrderItem`/
+`OrderStatusHistory`, `Banner`. Run `npm run studio` to browse the database visually.

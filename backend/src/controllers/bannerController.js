@@ -1,9 +1,10 @@
-const Banner = require('../models/Banner');
+const bannerService = require('../services/bannerService');
+const bannerPresenter = require('../presenters/bannerPresenter');
 
 async function listBanners(req, res, next) {
   try {
-    const banners = await Banner.find({ isActive: true }).sort({ order: 1, createdAt: 1 });
-    res.json({ banners });
+    const banners = await bannerService.listActive();
+    res.json({ banners: bannerPresenter.toListView(banners) });
   } catch (err) {
     next(err);
   }
@@ -11,8 +12,8 @@ async function listBanners(req, res, next) {
 
 async function listAllBanners(req, res, next) {
   try {
-    const banners = await Banner.find({}).sort({ order: 1, createdAt: 1 });
-    res.json({ banners });
+    const banners = await bannerService.listAll();
+    res.json({ banners: bannerPresenter.toListView(banners) });
   } catch (err) {
     next(err);
   }
@@ -20,11 +21,8 @@ async function listAllBanners(req, res, next) {
 
 async function getBannerById(req, res, next) {
   try {
-    const banner = await Banner.findById(req.params.id);
-    if (!banner) {
-      return res.status(404).json({ message: 'Banner not found' });
-    }
-    res.json({ banner });
+    const banner = await bannerService.getById(req.params.id);
+    res.json({ banner: bannerPresenter.toView(banner) });
   } catch (err) {
     next(err);
   }
@@ -32,24 +30,8 @@ async function getBannerById(req, res, next) {
 
 async function createBanner(req, res, next) {
   try {
-    const { image, badge, title, description, buttonText, linkHref, order, isActive } = req.body;
-
-    if (!image || !title) {
-      return res.status(400).json({ message: 'Image and title are required' });
-    }
-
-    const banner = await Banner.create({
-      image,
-      badge,
-      title,
-      description,
-      buttonText,
-      linkHref,
-      order,
-      isActive,
-    });
-
-    res.status(201).json({ banner });
+    const banner = await bannerService.create(req.body);
+    res.status(201).json({ banner: bannerPresenter.toView(banner) });
   } catch (err) {
     next(err);
   }
@@ -57,18 +39,8 @@ async function createBanner(req, res, next) {
 
 async function updateBanner(req, res, next) {
   try {
-    const banner = await Banner.findById(req.params.id);
-    if (!banner) {
-      return res.status(404).json({ message: 'Banner not found' });
-    }
-
-    const fields = ['image', 'badge', 'title', 'description', 'buttonText', 'linkHref', 'order', 'isActive'];
-    fields.forEach((field) => {
-      if (req.body[field] !== undefined) banner[field] = req.body[field];
-    });
-
-    await banner.save();
-    res.json({ banner });
+    const banner = await bannerService.update(req.params.id, req.body);
+    res.json({ banner: bannerPresenter.toView(banner) });
   } catch (err) {
     next(err);
   }
@@ -76,10 +48,7 @@ async function updateBanner(req, res, next) {
 
 async function deleteBanner(req, res, next) {
   try {
-    const banner = await Banner.findByIdAndDelete(req.params.id);
-    if (!banner) {
-      return res.status(404).json({ message: 'Banner not found' });
-    }
+    await bannerService.remove(req.params.id);
     res.json({ message: 'Banner deleted' });
   } catch (err) {
     next(err);

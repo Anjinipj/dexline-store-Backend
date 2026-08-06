@@ -34,14 +34,33 @@ model User {
 }
 
 model Category {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  slug        String     @unique
+  description String     @default("")
+  isActive    Boolean    @default(true)
+  parentId    String?
+  parent      Category?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Category[] @relation("CategoryParent")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  products    Product[]
+
+  @@index([parentId])
+}
+
+model Brand {
   id          String    @id @default(uuid())
   name        String    @unique
   slug        String    @unique
+  logoUrl     String    @default("")
   description String    @default("")
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   products    Product[]
+
+  @@index([isActive])
 }
 
 model Product {
@@ -50,6 +69,8 @@ model Product {
   slug           String   @unique
   categoryId     String
   category       Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brandId        String
+  brand          Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
   price          Decimal  @db.Decimal(10, 2)
   compareAtPrice Decimal? @db.Decimal(10, 2)
   images         String[] @default([])
@@ -64,6 +85,7 @@ model Product {
   orderItems OrderItem[]
 
   @@index([categoryId])
+  @@index([brandId])
   @@index([isActive])
 }
 

@@ -1,7 +1,7 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
-const { categorySlug, productSlug } = require('../src/utils/slug');
+const { categorySlug, productSlug, brandSlug } = require('../src/utils/slug');
 
 const prisma = new PrismaClient();
 
@@ -24,6 +24,19 @@ async function seed() {
     console.log('Admin already exists, skipping.');
   }
 
+  // Representative set only — the source spec calls for 60+ brands; the rest
+  // are entered via the admin Brand panel post-launch.
+  const brandNames = ['HP', 'Dell', 'Lenovo', 'Asus', 'Acer', 'Logitech', 'TP-Link', 'Canon', 'Epson', 'Green Soul'];
+  const brands = {};
+  for (const name of brandNames) {
+    let brand = await prisma.brand.findUnique({ where: { name } });
+    if (!brand) {
+      brand = await prisma.brand.create({ data: { name, slug: brandSlug(name) } });
+      console.log(`Brand created: ${name}`);
+    }
+    brands[name] = brand;
+  }
+
   const categoryNames = ['Laptops', 'Desktops & Computers', 'Networking', 'Office Equipment', 'Accessories'];
   const categories = {};
   for (const name of categoryNames) {
@@ -35,12 +48,30 @@ async function seed() {
     categories[name] = category;
   }
 
+  const subCategoryDefs = [
+    { name: 'Business Laptops', parent: 'Laptops' },
+    { name: 'Gaming Laptops', parent: 'Laptops' },
+    { name: 'Storage', parent: 'Accessories' },
+  ];
+  const subCategories = {};
+  for (const def of subCategoryDefs) {
+    let sub = await prisma.category.findUnique({ where: { name: def.name } });
+    if (!sub) {
+      sub = await prisma.category.create({
+        data: { name: def.name, slug: categorySlug(def.name), parentId: categories[def.parent].id },
+      });
+      console.log(`Subcategory created: ${def.name} (under ${def.parent})`);
+    }
+    subCategories[def.name] = sub;
+  }
+
   const existingProductCount = await prisma.product.count();
   if (existingProductCount === 0) {
     const products = [
       {
         name: '14" Business Laptop — Core i5, 8GB RAM, 256GB SSD',
-        category: categories['Laptops'],
+        category: subCategories['Business Laptops'],
+        brand: brands['Dell'],
         price: 54999,
         compareAtPrice: 61999,
         images: [
@@ -55,6 +86,7 @@ async function seed() {
       {
         name: '15.6" Everyday Laptop — Core i3, 8GB RAM, 512GB SSD',
         category: categories['Laptops'],
+        brand: brands['HP'],
         price: 39999,
         images: ['https://picsum.photos/seed/dexline-laptop-3/800/800'],
         description: 'Reliable everyday laptop for browsing, documents and video calls, with a spacious 512GB SSD.',
@@ -63,6 +95,7 @@ async function seed() {
       {
         name: 'Mini Tower Desktop PC — Core i5, 16GB RAM, 512GB SSD',
         category: categories['Desktops & Computers'],
+        brand: brands['Lenovo'],
         price: 47999,
         images: ['https://picsum.photos/seed/dexline-desktop-1/800/800'],
         description:
@@ -72,6 +105,7 @@ async function seed() {
       {
         name: '24" Full HD Monitor',
         category: categories['Desktops & Computers'],
+        brand: brands['Asus'],
         price: 8999,
         images: ['https://picsum.photos/seed/dexline-monitor-1/800/800'],
         description: 'IPS full-HD monitor with slim bezels, HDMI + VGA input — a solid companion for any desktop setup.',
@@ -80,6 +114,7 @@ async function seed() {
       {
         name: '24-Port Gigabit Network Switch',
         category: categories['Networking'],
+        brand: brands['TP-Link'],
         price: 12499,
         images: ['https://picsum.photos/seed/dexline-switch-1/800/800'],
         description: 'Unmanaged 24-port Gigabit switch for growing office networks — plug-and-play, rack mountable.',
@@ -89,6 +124,7 @@ async function seed() {
       {
         name: 'Dual-Band Wi-Fi 6 Router',
         category: categories['Networking'],
+        brand: brands['TP-Link'],
         price: 6499,
         compareAtPrice: 7999,
         images: ['https://picsum.photos/seed/dexline-router-1/800/800'],
@@ -98,6 +134,7 @@ async function seed() {
       {
         name: 'A4 All-in-One Laser Printer',
         category: categories['Office Equipment'],
+        brand: brands['Canon'],
         price: 15999,
         images: ['https://picsum.photos/seed/dexline-printer-1/800/800'],
         description: 'Print, scan and copy laser all-in-one with network + Wi-Fi connectivity for the whole office.',
@@ -106,6 +143,7 @@ async function seed() {
       {
         name: 'Ergonomic Mesh Office Chair',
         category: categories['Office Equipment'],
+        brand: brands['Green Soul'],
         price: 10999,
         images: ['https://picsum.photos/seed/dexline-chair-1/800/800'],
         description: 'Breathable mesh-back office chair with adjustable lumbar support and armrests.',
@@ -115,6 +153,7 @@ async function seed() {
       {
         name: 'Wireless Keyboard & Mouse Combo',
         category: categories['Accessories'],
+        brand: brands['Logitech'],
         price: 1799,
         images: ['https://picsum.photos/seed/dexline-combo-1/800/800'],
         description: 'Slim wireless keyboard and mouse combo with a shared USB receiver — quiet keys, long battery life.',
@@ -122,7 +161,8 @@ async function seed() {
       },
       {
         name: '1TB Portable External SSD',
-        category: categories['Accessories'],
+        category: subCategories['Storage'],
+        brand: brands['Acer'],
         price: 7499,
         images: ['https://picsum.photos/seed/dexline-ssd-1/800/800'],
         description: 'Pocket-sized 1TB external SSD with USB-C, fast transfer speeds for backups and file sharing.',
@@ -136,6 +176,7 @@ async function seed() {
           name: p.name,
           slug: productSlug(p.name),
           categoryId: p.category.id,
+          brandId: p.brand.id,
           price: p.price,
           compareAtPrice: p.compareAtPrice ?? null,
           images: p.images,

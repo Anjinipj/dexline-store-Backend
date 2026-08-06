@@ -9,6 +9,9 @@ function toView(product) {
     category: product.category
       ? mapId({ id: product.category.id, name: product.category.name, slug: product.category.slug })
       : product.categoryId,
+    brand: product.brand
+      ? mapId({ id: product.brand.id, name: product.brand.name, slug: product.brand.slug, logoUrl: product.brand.logoUrl })
+      : product.brandId,
     price: toNumber(product.price),
     compareAtPrice: toNumber(product.compareAtPrice),
     images: product.images,

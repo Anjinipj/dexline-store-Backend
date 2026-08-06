@@ -3,11 +3,14 @@ const HttpError = require('../errors/HttpError');
 const { productSlug } = require('../utils/slug');
 
 const CATEGORY_SELECT = { id: true, name: true, slug: true };
+const BRAND_SELECT = { id: true, name: true, slug: true, logoUrl: true };
+const PRODUCT_INCLUDE = { category: { select: CATEGORY_SELECT }, brand: { select: BRAND_SELECT } };
 
-function buildFilter({ category, search, isActive }) {
+function buildFilter({ category, brand, search, isActive }) {
   const filter = {};
   if (isActive !== undefined) filter.isActive = isActive;
   if (category) filter.categoryId = category;
+  if (brand) filter.brandId = brand;
   if (search) {
     filter.OR = [
       { name: { contains: search, mode: 'insensitive' } },
@@ -25,15 +28,15 @@ function clampLimit(limit, fallback, max) {
   return Math.min(Math.max(parseInt(limit, 10) || fallback, 1), max);
 }
 
-async function list({ category, search, page = 1, limit = 12 }) {
-  const filter = buildFilter({ category, search, isActive: true });
+async function list({ category, brand, search, page = 1, limit = 12 }) {
+  const filter = buildFilter({ category, brand, search, isActive: true });
   const pageNum = clampPage(page);
   const limitNum = clampLimit(limit, 12, 50);
 
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where: filter,
-      include: { category: { select: CATEGORY_SELECT } },
+      include: PRODUCT_INCLUDE,
       orderBy: { createdAt: 'desc' },
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
@@ -44,15 +47,15 @@ async function list({ category, search, page = 1, limit = 12 }) {
   return { products, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } };
 }
 
-async function listAllAdmin({ category, search, page = 1, limit = 20 }) {
-  const filter = buildFilter({ category, search });
+async function listAllAdmin({ category, brand, search, page = 1, limit = 20 }) {
+  const filter = buildFilter({ category, brand, search });
   const pageNum = clampPage(page);
   const limitNum = clampLimit(limit, 20, 100);
 
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where: filter,
-      include: { category: { select: CATEGORY_SELECT } },
+      include: PRODUCT_INCLUDE,
       orderBy: { createdAt: 'desc' },
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
@@ -66,7 +69,7 @@ async function listAllAdmin({ category, search, page = 1, limit = 20 }) {
 async function getBySlug(slug) {
   const product = await prisma.product.findFirst({
     where: { slug, isActive: true },
-    include: { category: { select: CATEGORY_SELECT } },
+    include: PRODUCT_INCLUDE,
   });
   if (!product) {
     throw new HttpError(404, 'Product not found');
@@ -77,7 +80,7 @@ async function getBySlug(slug) {
 async function getById(id) {
   const product = await prisma.product.findUnique({
     where: { id },
-    include: { category: { select: CATEGORY_SELECT } },
+    include: PRODUCT_INCLUDE,
   });
   if (!product) {
     throw new HttpError(404, 'Product not found');
@@ -85,9 +88,9 @@ async function getById(id) {
   return product;
 }
 
-async function create({ name, category, price, compareAtPrice, images, description, stock, isActive, isFeatured }) {
-  if (!name || !category || price === undefined) {
-    throw new HttpError(400, 'Name, category and price are required');
+async function create({ name, category, brand, price, compareAtPrice, images, description, stock, isActive, isFeatured }) {
+  if (!name || !category || !brand || price === undefined) {
+    throw new HttpError(400, 'Name, category, brand and price are required');
   }
 
   const product = await prisma.product.create({
@@ -95,6 +98,7 @@ async function create({ name, category, price, compareAtPrice, images, descripti
       name,
       slug: productSlug(name),
       categoryId: category,
+      brandId: brand,
       price,
       compareAtPrice: compareAtPrice ?? null,
       images: images || [],
@@ -103,7 +107,7 @@ async function create({ name, category, price, compareAtPrice, images, descripti
       isActive: isActive ?? true,
       isFeatured: isFeatured ?? false,
     },
-    include: { category: { select: CATEGORY_SELECT } },
+    include: PRODUCT_INCLUDE,
   });
 
   return product;
@@ -121,6 +125,7 @@ async function update(id, body) {
     data.slug = productSlug(body.name);
   }
   if (body.category !== undefined) data.categoryId = body.category;
+  if (body.brand !== undefined) data.brandId = body.brand;
   if (body.price !== undefined) data.price = body.price;
   if (body.compareAtPrice !== undefined) data.compareAtPrice = body.compareAtPrice;
   if (body.images !== undefined) data.images = body.images;
@@ -132,7 +137,7 @@ async function update(id, body) {
   return prisma.product.update({
     where: { id },
     data,
-    include: { category: { select: CATEGORY_SELECT } },
+    include: PRODUCT_INCLUDE,
   });
 }
 

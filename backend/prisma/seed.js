@@ -37,7 +37,14 @@ async function seed() {
     brands[name] = brand;
   }
 
-  const categoryNames = ['Laptops', 'Desktops & Computers', 'Networking', 'Office Equipment', 'Accessories'];
+  const categoryNames = [
+    'Networking',
+    'Cyber Security',
+    'CCTV & Surveillance',
+    'Servers & Storage',
+    'Computers & Laptops',
+    'Access Control',
+  ];
   const categories = {};
   for (const name of categoryNames) {
     let category = await prisma.category.findUnique({ where: { name } });
@@ -49,9 +56,9 @@ async function seed() {
   }
 
   const subCategoryDefs = [
-    { name: 'Business Laptops', parent: 'Laptops' },
-    { name: 'Gaming Laptops', parent: 'Laptops' },
-    { name: 'Storage', parent: 'Accessories' },
+    { name: 'Business Laptops', parent: 'Computers & Laptops' },
+    { name: 'Gaming Laptops', parent: 'Computers & Laptops' },
+    { name: 'Storage', parent: 'Computers & Laptops' },
   ];
   const subCategories = {};
   for (const def of subCategoryDefs) {
@@ -85,7 +92,7 @@ async function seed() {
       },
       {
         name: '15.6" Everyday Laptop — Core i3, 8GB RAM, 512GB SSD',
-        category: categories['Laptops'],
+        category: categories['Computers & Laptops'],
         brand: brands['HP'],
         price: 39999,
         images: ['https://picsum.photos/seed/dexline-laptop-3/800/800'],
@@ -94,7 +101,7 @@ async function seed() {
       },
       {
         name: 'Mini Tower Desktop PC — Core i5, 16GB RAM, 512GB SSD',
-        category: categories['Desktops & Computers'],
+        category: categories['Computers & Laptops'],
         brand: brands['Lenovo'],
         price: 47999,
         images: ['https://picsum.photos/seed/dexline-desktop-1/800/800'],
@@ -104,7 +111,7 @@ async function seed() {
       },
       {
         name: '24" Full HD Monitor',
-        category: categories['Desktops & Computers'],
+        category: categories['Computers & Laptops'],
         brand: brands['Asus'],
         price: 8999,
         images: ['https://picsum.photos/seed/dexline-monitor-1/800/800'],
@@ -133,7 +140,7 @@ async function seed() {
       },
       {
         name: 'A4 All-in-One Laser Printer',
-        category: categories['Office Equipment'],
+        category: categories['Computers & Laptops'],
         brand: brands['Canon'],
         price: 15999,
         images: ['https://picsum.photos/seed/dexline-printer-1/800/800'],
@@ -142,7 +149,7 @@ async function seed() {
       },
       {
         name: 'Ergonomic Mesh Office Chair',
-        category: categories['Office Equipment'],
+        category: categories['Computers & Laptops'],
         brand: brands['Green Soul'],
         price: 10999,
         images: ['https://picsum.photos/seed/dexline-chair-1/800/800'],
@@ -152,7 +159,7 @@ async function seed() {
       },
       {
         name: 'Wireless Keyboard & Mouse Combo',
-        category: categories['Accessories'],
+        category: categories['Computers & Laptops'],
         brand: brands['Logitech'],
         price: 1799,
         images: ['https://picsum.photos/seed/dexline-combo-1/800/800'],
@@ -196,7 +203,7 @@ async function seed() {
     await prisma.banner.createMany({
       data: [
         {
-          image: 'https://picsum.photos/seed/dexline-hero-1/1600/900',
+          images: ['https://picsum.photos/seed/dexline-hero-1/1600/900'],
           badge: 'IT hardware sourced from 60+ trusted suppliers',
           title: 'Laptops, desktops, office & networking gear — sorted on WhatsApp.',
           description: 'Browse the catalog, add to cart, and check out straight to WhatsApp — no card, no hassle.',
@@ -205,7 +212,7 @@ async function seed() {
           order: 1,
         },
         {
-          image: 'https://picsum.photos/seed/dexline-hero-2/1600/900',
+          images: ['https://picsum.photos/seed/dexline-hero-2/1600/900'],
           badge: 'For the whole office',
           title: 'Fit out your office in one order.',
           description: 'Laptops, desktops, printers and office furniture, all from one supplier.',
@@ -214,7 +221,7 @@ async function seed() {
           order: 2,
         },
         {
-          image: 'https://picsum.photos/seed/dexline-hero-3/1600/900',
+          images: ['https://picsum.photos/seed/dexline-hero-3/1600/900'],
           badge: 'Networking',
           title: 'Upgrade your network without the hassle.',
           description: 'Routers, switches and access points for offices of any size.',
@@ -223,7 +230,7 @@ async function seed() {
           order: 3,
         },
         {
-          image: 'https://picsum.photos/seed/dexline-hero-4/1600/900',
+          images: ['https://picsum.photos/seed/dexline-hero-4/1600/900'],
           badge: 'New stock weekly',
           title: 'Fresh laptop deals, every week.',
           description: 'New arrivals and price drops added regularly across the catalog.',

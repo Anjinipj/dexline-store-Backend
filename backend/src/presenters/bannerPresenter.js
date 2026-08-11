@@ -4,7 +4,7 @@ function toView(banner) {
   if (!banner) return banner;
   return mapId({
     id: banner.id,
-    image: banner.image,
+    images: banner.images,
     badge: banner.badge,
     title: banner.title,
     description: banner.description,

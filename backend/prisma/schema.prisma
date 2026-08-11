@@ -218,7 +218,7 @@ model OrderStatusHistory {
 
 model Banner {
   id          String   @id @default(uuid())
-  image       String
+  images      String[] @default([])
   badge       String   @default("")
   title       String
   description String   @default("")

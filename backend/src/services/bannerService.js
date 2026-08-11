@@ -19,14 +19,16 @@ async function getById(id) {
   return banner;
 }
 
-async function create({ image, badge, title, description, buttonText, linkHref, order, isActive }) {
-  if (!image || !title) {
-    throw new HttpError(400, 'Image and title are required');
+const MAX_IMAGES = 5;
+
+async function create({ images, badge, title, description, buttonText, linkHref, order, isActive }) {
+  if (!Array.isArray(images) || images.length === 0 || !title) {
+    throw new HttpError(400, 'At least one image and a title are required');
   }
 
   return prisma.banner.create({
     data: {
-      image,
+      images: images.slice(0, MAX_IMAGES),
       badge: badge || '',
       title,
       description: description || '',
@@ -45,10 +47,16 @@ async function update(id, body) {
   }
 
   const data = {};
-  const fields = ['image', 'badge', 'title', 'description', 'buttonText', 'linkHref', 'order', 'isActive'];
+  const fields = ['badge', 'title', 'description', 'buttonText', 'linkHref', 'order', 'isActive'];
   fields.forEach((field) => {
     if (body[field] !== undefined) data[field] = body[field];
   });
+  if (body.images !== undefined) {
+    if (!Array.isArray(body.images) || body.images.length === 0) {
+      throw new HttpError(400, 'At least one image is required');
+    }
+    data.images = body.images.slice(0, MAX_IMAGES);
+  }
 
   return prisma.banner.update({ where: { id }, data });
 }

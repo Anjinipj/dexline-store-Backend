@@ -1,10 +1,7 @@
 const PDFDocument = require('pdfkit');
 
-// pdfkit's standard 14 PDF fonts (Helvetica etc.) only cover WinAnsi/Latin-1 —
-// the ₹ glyph isn't in that set and silently renders as a broken character.
-// "Rs." avoids embedding a custom Unicode font just for one symbol.
 function money(value) {
-  return `Rs. ${Number(value).toFixed(2)}`;
+  return `AED ${Number(value).toFixed(2)}`;
 }
 
 function formatDate(date) {
@@ -69,11 +66,12 @@ function streamInvoicePdf(res, { order, invoice }) {
   y += 14;
 
   // Dedicated totals block, wide enough for the longest label ("Discount
-  // (COUPONCODE)") to stay on one line rather than wrapping into the row below.
+  // (COUPONCODE)") to stay on one line, and a value column wide enough for
+  // the larger "Total" row font size to fit "AED 12345.00" without wrapping.
   const totalsLabelX = 330;
-  const totalsLabelWidth = 145;
-  const totalsValueX = 480;
-  const totalsValueWidth = 65;
+  const totalsLabelWidth = 105;
+  const totalsValueX = 440;
+  const totalsValueWidth = 105;
 
   const totals = [
     ['Subtotal', money(order.subtotalAmount)],

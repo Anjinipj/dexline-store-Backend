@@ -110,7 +110,7 @@ async function findValidCoupon(code, subtotal, txClient = prisma) {
   }
   const minOrderAmount = coupon.minOrderAmount === null ? null : Number(coupon.minOrderAmount);
   if (minOrderAmount !== null && subtotal < minOrderAmount) {
-    throw new HttpError(400, `Minimum order amount of ₹${minOrderAmount} not met`);
+    throw new HttpError(400, `Minimum order amount of AED ${minOrderAmount} not met`);
   }
 
   const value = Number(coupon.value);

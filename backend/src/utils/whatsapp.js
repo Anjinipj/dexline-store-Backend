@@ -6,10 +6,10 @@ function buildWhatsappLink(order) {
     '',
     'Items:',
     ...order.items.map(
-      (item) => `- ${item.name} x${item.quantity} = ₹${(Number(item.price) * item.quantity).toFixed(2)}`
+      (item) => `- ${item.name} x${item.quantity} = AED ${(Number(item.price) * item.quantity).toFixed(2)}`
     ),
     '',
-    `Total: ₹${Number(order.totalAmount).toFixed(2)}`,
+    `Total: AED ${Number(order.totalAmount).toFixed(2)}`,
     '',
     `Name: ${order.customerName}`,
     `Phone: ${order.customerPhone}`,

@@ -36,7 +36,7 @@ async function assertNoCycle(targetId, startParentId) {
   }
 }
 
-async function create({ name, description, isActive, parentId }) {
+async function create({ name, description, imageUrl, isActive, parentId }) {
   if (!name) {
     throw new HttpError(400, 'Category name is required');
   }
@@ -53,6 +53,7 @@ async function create({ name, description, isActive, parentId }) {
       name,
       slug: categorySlug(name),
       description: description || '',
+      imageUrl: imageUrl || '',
       isActive: isActive ?? true,
       parentId: parentId || null,
     },
@@ -60,7 +61,7 @@ async function create({ name, description, isActive, parentId }) {
   });
 }
 
-async function update(id, { name, description, isActive, parentId }) {
+async function update(id, { name, description, imageUrl, isActive, parentId }) {
   const existing = await prisma.category.findUnique({ where: { id } });
   if (!existing) {
     throw new HttpError(404, 'Category not found');
@@ -72,6 +73,7 @@ async function update(id, { name, description, isActive, parentId }) {
     data.slug = categorySlug(name);
   }
   if (description !== undefined) data.description = description;
+  if (imageUrl !== undefined) data.imageUrl = imageUrl;
   if (isActive !== undefined) data.isActive = isActive;
 
   if (parentId !== undefined) {

@@ -7,6 +7,7 @@ function toView(category) {
     name: category.name,
     slug: category.slug,
     description: category.description,
+    imageUrl: category.imageUrl,
     isActive: category.isActive,
     parentId: category.parentId,
     parent: category.parent ? mapId({ id: category.parent.id, name: category.parent.name, slug: category.parent.slug }) : null,

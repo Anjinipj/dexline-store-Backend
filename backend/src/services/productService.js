@@ -6,7 +6,7 @@ const CATEGORY_SELECT = { id: true, name: true, slug: true };
 const BRAND_SELECT = { id: true, name: true, slug: true, logoUrl: true };
 const PRODUCT_INCLUDE = { category: { select: CATEGORY_SELECT }, brand: { select: BRAND_SELECT } };
 
-function buildFilter({ category, brand, search, isActive }) {
+function buildFilter({ category, brand, search, minPrice, maxPrice, inStock, isActive }) {
   const filter = {};
   if (isActive !== undefined) filter.isActive = isActive;
   if (category) filter.categoryId = category;
@@ -17,7 +17,32 @@ function buildFilter({ category, brand, search, isActive }) {
       { description: { contains: search, mode: 'insensitive' } },
     ];
   }
+
+  const price = {};
+  const min = Number(minPrice);
+  const max = Number(maxPrice);
+  if (minPrice !== undefined && minPrice !== '' && Number.isFinite(min) && min >= 0) price.gte = min;
+  if (maxPrice !== undefined && maxPrice !== '' && Number.isFinite(max) && max >= 0) price.lte = max;
+  if (Object.keys(price).length) filter.price = price;
+
+  if (inStock === 'true' || inStock === true) filter.stock = { gt: 0 };
+
   return filter;
+}
+
+// Unrecognized values fall back to the default (newest) rather than
+// throwing, so a stale or hand-edited ?sort= in the URL degrades gracefully.
+function buildOrderBy(sort) {
+  switch (sort) {
+    case 'price-asc':
+      return { price: 'asc' };
+    case 'price-desc':
+      return { price: 'desc' };
+    case 'best-selling':
+      return [{ isFeatured: 'desc' }, { createdAt: 'desc' }];
+    default:
+      return { createdAt: 'desc' };
+  }
 }
 
 function clampPage(page) {
@@ -28,8 +53,9 @@ function clampLimit(limit, fallback, max) {
   return Math.min(Math.max(parseInt(limit, 10) || fallback, 1), max);
 }
 
-async function list({ category, brand, search, page = 1, limit = 12 }) {
-  const filter = buildFilter({ category, brand, search, isActive: true });
+async function list({ category, brand, search, minPrice, maxPrice, inStock, sort, page = 1, limit = 12 }) {
+  const filter = buildFilter({ category, brand, search, minPrice, maxPrice, inStock, isActive: true });
+  const orderBy = buildOrderBy(sort);
   const pageNum = clampPage(page);
   const limitNum = clampLimit(limit, 12, 50);
 
@@ -37,7 +63,7 @@ async function list({ category, brand, search, page = 1, limit = 12 }) {
     prisma.product.findMany({
       where: filter,
       include: PRODUCT_INCLUDE,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
     }),

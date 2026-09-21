@@ -12,10 +12,12 @@ async function listActive() {
   });
 }
 
+// Admin list: each row also carries how many products and direct
+// subcategories it has — the same two things that block deletion in remove().
 async function listAll() {
   return prisma.category.findMany({
     orderBy: { name: 'asc' },
-    include: { parent: { select: PARENT_SELECT } },
+    include: { parent: { select: PARENT_SELECT }, _count: { select: { products: true, children: true } } },
   });
 }
 

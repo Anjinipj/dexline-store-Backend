@@ -1,8 +1,36 @@
 const prisma = require('../lib/prisma');
 const HttpError = require('../errors/HttpError');
 
-async function listAllAdmin() {
-  return prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } });
+const COUPON_SORT_FIELDS = { code: 'code', value: 'value', expiresAt: 'expiresAt', createdAt: 'createdAt' };
+
+// Status filter uses the same rule checkout enforces (findValidCoupon below):
+// a coupon is expired once expiresAt is in the past, whatever its isActive
+// flag says. "inactive" therefore means switched off AND not yet expired.
+function couponStatusFilter(status, now) {
+  const notExpired = [{ expiresAt: null }, { expiresAt: { gte: now } }];
+  if (status === 'expired') return { expiresAt: { lt: now } };
+  if (status === 'active') return { isActive: true, OR: notExpired };
+  if (status === 'inactive') return { isActive: false, OR: notExpired };
+  return {};
+}
+
+async function listAllAdmin({ search, status, sort, dir, page = 1, limit = 25 } = {}) {
+  const filter = couponStatusFilter(status, new Date());
+  if (search) filter.code = { contains: String(search).trim(), mode: 'insensitive' };
+
+  const sortField = COUPON_SORT_FIELDS[sort];
+  const direction = dir === 'asc' ? 'asc' : 'desc';
+  const orderBy = sortField ? [{ [sortField]: direction }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'asc' }];
+
+  const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+  const limitNum = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
+
+  const [coupons, total] = await Promise.all([
+    prisma.coupon.findMany({ where: filter, orderBy, skip: (pageNum - 1) * limitNum, take: limitNum }),
+    prisma.coupon.count({ where: filter }),
+  ]);
+
+  return { coupons, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } };
 }
 
 async function getById(id) {

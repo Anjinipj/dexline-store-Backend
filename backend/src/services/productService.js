@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const HttpError = require('../errors/HttpError');
 const { productSlug } = require('../utils/slug');
+const { LOW_STOCK_THRESHOLD } = require('../constants/inventory');
 
 const CATEGORY_SELECT = { id: true, name: true, slug: true };
 const BRAND_SELECT = { id: true, name: true, slug: true, logoUrl: true };
@@ -73,8 +74,27 @@ async function list({ category, brand, search, minPrice, maxPrice, inStock, sort
   return { products, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } };
 }
 
-async function listAllAdmin({ category, brand, search, page = 1, limit = 20 }) {
+// Columns the admin table may sort by. Anything else falls back to newest
+// first, so a stale or hand-edited ?sort= never errors.
+const ADMIN_SORT_FIELDS = { name: 'name', price: 'price', stock: 'stock', createdAt: 'createdAt' };
+
+// Everything here runs in the database against the whole product set, so
+// filters, sort order and page counts are never limited to the rows on screen.
+//   status: 'active' | 'inactive'
+//   stock:  'low' (<= LOW_STOCK_THRESHOLD, includes out of stock) | 'out' (0)
+async function listAllAdmin({ category, brand, search, status, stock, sort, dir, page = 1, limit = 20 }) {
   const filter = buildFilter({ category, brand, search });
+  if (status === 'active') filter.isActive = true;
+  if (status === 'inactive') filter.isActive = false;
+  if (stock === 'low') filter.stock = { lte: LOW_STOCK_THRESHOLD };
+  if (stock === 'out') filter.stock = { lte: 0 };
+
+  const sortField = ADMIN_SORT_FIELDS[sort];
+  const direction = dir === 'asc' ? 'asc' : 'desc';
+  // `id` as a final tiebreaker keeps page boundaries stable when many rows
+  // share the sorted value (e.g. several products with the same stock).
+  const orderBy = sortField ? [{ [sortField]: direction }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'asc' }];
+
   const pageNum = clampPage(page);
   const limitNum = clampLimit(limit, 20, 100);
 
@@ -82,7 +102,7 @@ async function listAllAdmin({ category, brand, search, page = 1, limit = 20 }) {
     prisma.product.findMany({
       where: filter,
       include: PRODUCT_INCLUDE,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
     }),
@@ -148,7 +168,10 @@ async function update(id, body) {
   const data = {};
   if (body.name !== undefined) {
     data.name = body.name;
-    data.slug = productSlug(body.name);
+    // productSlug() appends a fresh timestamp, so regenerating it on every
+    // save (the admin form always submits the name) silently changed the
+    // public product URL each time. Only a genuine rename gets a new slug.
+    if (body.name !== existing.name) data.slug = productSlug(body.name);
   }
   if (body.category !== undefined) data.categoryId = body.category;
   if (body.brand !== undefined) data.brandId = body.brand;

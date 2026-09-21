@@ -5,6 +5,8 @@ const couponService = require('./couponService');
 const pricingService = require('./pricingService');
 const notificationService = require('./notificationService');
 const { ORDER_STATUSES, NEXT_STATUS, CANCELLABLE_FROM } = require('../constants/orderStatus');
+const businessConfig = require('../config/business');
+const { businessDayRange } = require('../utils/timezone');
 
 const ADMIN_CUSTOMER_SELECT_LIST = { name: true, email: true, phone: true };
 const ADMIN_CUSTOMER_SELECT_DETAIL = {
@@ -143,31 +145,88 @@ async function getMyOrderById(userId, orderId) {
   return order;
 }
 
-async function listOrdersAdmin({ status, page = 1, limit = 20 }) {
-  const filter = {};
+const ORDER_SORT_FIELDS = {
+  createdAt: 'createdAt',
+  totalAmount: 'totalAmount',
+  orderNumber: 'orderNumber',
+  customerName: 'customerName',
+};
+
+// Search matches the order number, the name/phone the customer gave at
+// checkout, and the customer's account name or email.
+function orderSearchFilter(search) {
+  const term = String(search || '').trim();
+  if (!term) return null;
+  const contains = { contains: term, mode: 'insensitive' };
+  return {
+    OR: [
+      { orderNumber: contains },
+      { customerName: contains },
+      { customerPhone: { contains: term.replace(/\s+/g, '') } },
+      { customer: { is: { name: contains } } },
+      { customer: { is: { email: contains } } },
+    ],
+  };
+}
+
+// Search and date range apply to the whole dataset. The status counts
+// returned alongside honour those same two filters but deliberately ignore
+// the selected status, so the status chips always show how many orders each
+// status would give for the current search/date selection.
+async function listOrdersAdmin({ status, search, from, to, sort, dir, page = 1, limit = 20 }) {
+  const base = {};
+  const searchFilter = orderSearchFilter(search);
+  if (searchFilter) Object.assign(base, searchFilter);
+  const range = businessDayRange({ from, to }, businessConfig.timezone);
+  if (range) base.createdAt = range;
+
+  const filter = { ...base };
   if (status && ORDER_STATUSES.includes(status)) filter.status = status;
+
+  const sortField = ORDER_SORT_FIELDS[sort];
+  const direction = dir === 'asc' ? 'asc' : 'desc';
+  const orderBy = sortField ? [{ [sortField]: direction }, { id: 'asc' }] : [{ createdAt: 'desc' }, { id: 'asc' }];
 
   const pageNum = Math.max(parseInt(page, 10) || 1, 1);
   const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
 
-  const [orders, total] = await Promise.all([
+  const [orders, total, grouped] = await Promise.all([
     prisma.order.findMany({
       where: filter,
       include: { ...ORDER_INCLUDE, customer: { select: ADMIN_CUSTOMER_SELECT_LIST } },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
     }),
     prisma.order.count({ where: filter }),
+    prisma.order.groupBy({ by: ['status'], where: base, _count: { _all: true } }),
   ]);
 
-  return { orders, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } };
+  const statusCounts = ORDER_STATUSES.reduce((acc, s) => ({ ...acc, [s]: 0 }), {});
+  grouped.forEach((g) => {
+    statusCounts[g.status] = g._count._all;
+  });
+
+  return {
+    orders,
+    pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+    statusCounts,
+    totalAllStatuses: grouped.reduce((sum, g) => sum + g._count._all, 0),
+  };
 }
+
+// Admin detail also records WHO made each status change (only where the
+// history row actually stored an actor).
+const ADMIN_DETAIL_INCLUDE = {
+  ...ORDER_INCLUDE,
+  statusHistory: { orderBy: { changedAt: 'asc' }, include: { changedBy: { select: { name: true, role: true } } } },
+  customer: { select: ADMIN_CUSTOMER_SELECT_DETAIL },
+};
 
 async function getOrderByIdAdmin(id) {
   const order = await prisma.order.findUnique({
     where: { id },
-    include: { ...ORDER_INCLUDE, customer: { select: ADMIN_CUSTOMER_SELECT_DETAIL } },
+    include: ADMIN_DETAIL_INCLUDE,
   });
   if (!order) {
     throw new HttpError(404, 'Order not found');
@@ -253,7 +312,7 @@ async function updateOrderStatus(id, status, adminId) {
     return tx.order.update({
       where: { id },
       data,
-      include: { ...ORDER_INCLUDE, customer: { select: ADMIN_CUSTOMER_SELECT_DETAIL } },
+      include: ADMIN_DETAIL_INCLUDE,
     });
   });
 

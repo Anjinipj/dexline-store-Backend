@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma');
 const { CONFIRMED_STATUSES } = require('./adminService');
 const { toNumber } = require('../presenters/shared');
 
-const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+const { LOW_STOCK_THRESHOLD: DEFAULT_LOW_STOCK_THRESHOLD } = require('../constants/inventory');
 
 function parseRange({ from, to }) {
   const fromDate = from ? new Date(from) : new Date(0);

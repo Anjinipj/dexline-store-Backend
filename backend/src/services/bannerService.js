@@ -69,4 +69,29 @@ async function remove(id) {
   await prisma.banner.delete({ where: { id } });
 }
 
-module.exports = { listActive, listAll, getById, create, update, remove };
+// Persists a complete new display order. The client sends every banner id in
+// the sequence it wants; each banner's `order` becomes its 0-based index, all
+// inside one transaction so a failure can never leave half the list
+// renumbered. Renumbering (rather than swapping two values) also repairs
+// lists where several banners share the same `order`, which would make a
+// simple swap a silent no-op.
+async function reorder(ids) {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => typeof id !== 'string')) {
+    throw new HttpError(400, 'ids must be a non-empty array of banner ids');
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new HttpError(400, 'ids must not contain duplicates');
+  }
+
+  const existing = await prisma.banner.findMany({ select: { id: true } });
+  const known = new Set(existing.map((b) => b.id));
+  if (known.size !== ids.length || ids.some((id) => !known.has(id))) {
+    // Someone added/removed a banner since this list was loaded.
+    throw new HttpError(409, 'The banner list has changed. Refresh the page and try again.');
+  }
+
+  await prisma.$transaction(ids.map((id, index) => prisma.banner.update({ where: { id }, data: { order: index } })));
+  return listAll();
+}
+
+module.exports = { listActive, listAll, getById, create, update, remove, reorder };

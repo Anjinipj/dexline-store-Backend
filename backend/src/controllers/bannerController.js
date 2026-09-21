@@ -55,6 +55,15 @@ async function deleteBanner(req, res, next) {
   }
 }
 
+async function reorderBanners(req, res, next) {
+  try {
+    const banners = await bannerService.reorder(req.body.ids);
+    res.json({ banners: bannerPresenter.toListView(banners) });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listBanners,
   listAllBanners,
@@ -62,4 +71,5 @@ module.exports = {
   createBanner,
   updateBanner,
   deleteBanner,
+  reorderBanners,
 };

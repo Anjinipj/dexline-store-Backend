@@ -30,9 +30,20 @@ async function list({ search, page = 1, limit = 50 }) {
   return { brands, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } };
 }
 
-async function listAllAdmin({ search, page = 1, limit = 100 }) {
+// `status`: 'active' | 'inactive'. `sort`: 'name' (default) | 'products'.
+// Each row carries its real product count (_count.products) so the admin list
+// can show it without a second request.
+async function listAllAdmin({ search, status, sort, dir, page = 1, limit = 100 }) {
   const filter = {};
   if (search) filter.name = { contains: search, mode: 'insensitive' };
+  if (status === 'active') filter.isActive = true;
+  if (status === 'inactive') filter.isActive = false;
+
+  const direction = dir === 'desc' ? 'desc' : 'asc';
+  const orderBy =
+    sort === 'products'
+      ? [{ products: { _count: direction } }, { name: 'asc' }]
+      : [{ name: direction }];
 
   const pageNum = clampPage(page);
   const limitNum = clampLimit(limit, 100, 200);
@@ -40,7 +51,8 @@ async function listAllAdmin({ search, page = 1, limit = 100 }) {
   const [brands, total] = await Promise.all([
     prisma.brand.findMany({
       where: filter,
-      orderBy: { name: 'asc' },
+      include: { _count: { select: { products: true } } },
+      orderBy,
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
     }),

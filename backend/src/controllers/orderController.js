@@ -35,8 +35,8 @@ async function getMyOrderById(req, res, next) {
 
 async function listOrdersAdmin(req, res, next) {
   try {
-    const { orders, pagination } = await orderService.listOrdersAdmin(req.query);
-    res.json({ orders: orderPresenter.toAdminListView(orders), pagination });
+    const { orders, pagination, statusCounts, totalAllStatuses } = await orderService.listOrdersAdmin(req.query);
+    res.json({ orders: orderPresenter.toAdminListView(orders), pagination, statusCounts, totalAllStatuses });
   } catch (err) {
     next(err);
   }

@@ -5,8 +5,8 @@ const pricingService = require('../services/pricingService');
 
 async function listAllAdmin(req, res, next) {
   try {
-    const coupons = await couponService.listAllAdmin();
-    res.json({ coupons: couponPresenter.toListView(coupons) });
+    const { coupons, pagination } = await couponService.listAllAdmin(req.query);
+    res.json({ coupons: couponPresenter.toListView(coupons), pagination });
   } catch (err) {
     next(err);
   }

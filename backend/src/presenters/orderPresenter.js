@@ -73,6 +73,13 @@ function toAdminView(order) {
       }
     : undefined;
   view.confirmationEmail = confirmationEmailView(order);
+  // Actor is admin-only and only present where the history row recorded one
+  // (the customer-facing view never exposes who changed a status).
+  view.statusHistory = (order.statusHistory || []).map((h) => ({
+    status: h.status,
+    changedAt: h.changedAt,
+    changedBy: h.changedBy ? { name: h.changedBy.name, role: h.changedBy.role } : null,
+  }));
   return mapId(view);
 }
 

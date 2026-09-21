@@ -2,6 +2,7 @@ const orderService = require('../services/orderService');
 const orderPresenter = require('../presenters/orderPresenter');
 const buildWhatsappLink = require('../utils/whatsapp');
 const invoiceService = require('../services/invoiceService');
+const notificationService = require('../services/notificationService');
 const { streamInvoicePdf } = require('../services/pdfInvoiceService');
 
 async function createOrder(req, res, next) {
@@ -59,6 +60,19 @@ async function updateOrderStatus(req, res, next) {
   }
 }
 
+async function resendConfirmationEmail(req, res, next) {
+  try {
+    await notificationService.resendOrderConfirmedNotification(req.params.id);
+    // Re-read through the normal admin order load so the response always
+    // reflects the current notification status the same way the order
+    // detail page does — not a bespoke shape.
+    const order = await orderService.getOrderByIdAdmin(req.params.id);
+    res.json({ order: orderPresenter.toAdminView(order) });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function downloadInvoiceMine(req, res, next) {
   try {
     const { order, invoice } = await invoiceService.getInvoiceForOrder(req.params.id, req.user);
@@ -88,6 +102,7 @@ module.exports = {
   listOrdersAdmin,
   getOrderByIdAdmin,
   updateOrderStatus,
+  resendConfirmationEmail,
   downloadInvoiceMine,
   downloadInvoiceAdmin,
 };

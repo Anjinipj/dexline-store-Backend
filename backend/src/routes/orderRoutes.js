@@ -6,6 +6,7 @@ const {
   listOrdersAdmin,
   getOrderByIdAdmin,
   updateOrderStatus,
+  resendConfirmationEmail,
   downloadInvoiceMine,
   downloadInvoiceAdmin,
 } = require('../controllers/orderController');
@@ -23,6 +24,7 @@ router.get('/mine/:id/invoice', downloadInvoiceMine);
 router.get('/admin/all', adminOnly, listOrdersAdmin);
 router.get('/admin/:id', adminOnly, getOrderByIdAdmin);
 router.put('/admin/:id/status', adminOnly, updateOrderStatus);
+router.post('/admin/:id/resend-confirmation-email', adminOnly, resendConfirmationEmail);
 router.get('/admin/:id/invoice', adminOnly, downloadInvoiceAdmin);
 
 module.exports = router;

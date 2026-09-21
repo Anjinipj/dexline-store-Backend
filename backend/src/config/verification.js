@@ -43,7 +43,7 @@ const verificationConfig = {
       return process.env.EMAIL_FROM_ADDRESS || 'no-reply@dexline.store';
     },
     get supportEmail() {
-      return process.env.SUPPORT_EMAIL || 'support@dexline.store';
+      return process.env.SUPPORT_EMAIL || 'support@dexline.ae';
     },
   },
 

@@ -1,8 +1,5 @@
 const verificationConfig = require('../config/verification');
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+const { escapeHtml } = require('../utils/html');
 
 // Branded HTML + plain-text pair for the email-verification message. Kept
 // as one small builder rather than a template-file/engine, matching this

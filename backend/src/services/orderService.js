@@ -2,6 +2,8 @@ const prisma = require('../lib/prisma');
 const HttpError = require('../errors/HttpError');
 const generateOrderNumber = require('../utils/orderNumber');
 const couponService = require('./couponService');
+const pricingService = require('./pricingService');
+const notificationService = require('./notificationService');
 const { ORDER_STATUSES, NEXT_STATUS, CANCELLABLE_FROM } = require('../constants/orderStatus');
 
 const ADMIN_CUSTOMER_SELECT_LIST = { name: true, email: true, phone: true };
@@ -16,7 +18,11 @@ const ADMIN_CUSTOMER_SELECT_DETAIL = {
   addressPincode: true,
 };
 
-const ORDER_INCLUDE = { items: true, statusHistory: { orderBy: { changedAt: 'asc' } } };
+const ORDER_INCLUDE = {
+  items: true,
+  statusHistory: { orderBy: { changedAt: 'asc' } },
+  notifications: true,
+};
 
 async function createOrder(user, { phone, address, couponCode }) {
   const customerPhone = phone || user.phone;
@@ -37,7 +43,8 @@ async function createOrder(user, { phone, address, couponCode }) {
     // this same transaction, before touching stock. This runs alongside — not
     // instead of — the atomic stock check-and-decrement loop below; a failure
     // here or there rolls back everything identically.
-    const preSubtotal = cart.items.reduce((sum, i) => sum + Number(i.product.price) * i.quantity, 0);
+    const cartLineItems = cart.items.map((i) => ({ price: i.product.price, quantity: i.quantity }));
+    const { itemsSubtotal: preSubtotal } = pricingService.calculateOrderTotals(cartLineItems);
     let coupon = null;
     let discountAmount = 0;
     if (couponCode) {
@@ -73,8 +80,12 @@ async function createOrder(user, { phone, address, couponCode }) {
       });
     }
 
-    const subtotalAmount = itemsData.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
-    const totalAmount = subtotalAmount - discountAmount;
+    // Recomputed from the actually-created itemsData (the post-stock-check
+    // snapshot), through the same shared function the cart/coupon previews
+    // use — this is the one call that actually persists, so it is the
+    // authoritative, backend-trusted total. Never derived from anything the
+    // client sent.
+    const totals = pricingService.calculateOrderTotals(itemsData, { discountAmount });
 
     const created = await tx.order.create({
       data: {
@@ -87,11 +98,14 @@ async function createOrder(user, { phone, address, couponCode }) {
         shipCity: address?.city ?? user.addressCity ?? '',
         shipState: address?.state ?? user.addressState ?? '',
         shipPincode: address?.pincode ?? user.addressPincode ?? '',
-        subtotalAmount,
-        discountAmount,
-        taxAmount: 0,
+        subtotalAmount: totals.itemsSubtotal,
+        discountAmount: totals.discountAmount,
+        handlingAmount: totals.handlingAmount,
+        taxableAmount: totals.taxableAmount,
+        vatRate: totals.vatRate,
+        taxAmount: totals.vatAmount,
         shippingAmount: 0,
-        totalAmount,
+        totalAmount: totals.totalAmount,
         couponId: coupon?.id ?? null,
         couponCode: coupon?.code ?? '',
         status: 'Pending Confirmation',
@@ -185,13 +199,15 @@ async function updateOrderStatus(id, status, adminId) {
     data.paymentConfirmedById = adminId;
   }
 
+  // Every side-effect write below runs BEFORE the final tx.order.update —
+  // that update's `include` is what the caller (and the admin API response)
+  // actually sees, so anything created earlier in the same transaction
+  // (the invoice, the notification row) is guaranteed to already be there
+  // when it resolves. Doing it the other way around — update first, side
+  // effects after — would return a response whose `notifications`/`invoice`
+  // still reflected the pre-transaction state, even though everything did
+  // commit together.
   const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.order.update({
-      where: { id },
-      data,
-      include: { ...ORDER_INCLUDE, customer: { select: ADMIN_CUSTOMER_SELECT_DETAIL } },
-    });
-
     if (status === 'Cancelled') {
       // Restock every line item — atomic together with the status update above,
       // so a crash mid-way can't leave stock restored without the order actually
@@ -221,8 +237,31 @@ async function updateOrderStatus(id, status, adminId) {
       }
     }
 
-    return result;
+    if (status === 'Confirmed') {
+      // Transactional outbox: queued in the SAME transaction as the status
+      // change it belongs to, so a committed "Confirmed" status can never
+      // end up with no notification row — only after this commits does
+      // anything attempt to actually send it (see the kickDispatch call
+      // below, and notificationService.dispatchPending as the durable
+      // fallback). The state machine only ever allows entering "Confirmed"
+      // from "Pending Confirmation" and never allows re-entering it once
+      // left, and queueOrderConfirmedNotification is additionally guarded
+      // by a DB-unique constraint — so this can only ever run once per order.
+      await notificationService.queueOrderConfirmedNotification(tx, id);
+    }
+
+    return tx.order.update({
+      where: { id },
+      data,
+      include: { ...ORDER_INCLUDE, customer: { select: ADMIN_CUSTOMER_SELECT_DETAIL } },
+    });
   });
+
+  if (status === 'Confirmed') {
+    // Only after the transaction has committed — never send (or even
+    // attempt to send) based on a status change that could still roll back.
+    notificationService.kickDispatch();
+  }
 
   return updated;
 }

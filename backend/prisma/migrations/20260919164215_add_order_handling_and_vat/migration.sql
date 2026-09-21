@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "handlingAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "taxableAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "vatRate" DECIMAL(5,4) NOT NULL DEFAULT 0;

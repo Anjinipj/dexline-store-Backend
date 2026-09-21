@@ -73,18 +73,27 @@ function streamInvoicePdf(res, { order, invoice }) {
   const totalsValueX = 440;
   const totalsValueWidth = 105;
 
+  const vatPct = Math.round(Number(order.vatRate) * 100);
   const totals = [
     ['Subtotal', money(order.subtotalAmount)],
     ...(Number(order.discountAmount) > 0
       ? [[`Discount${order.couponCode ? ` (${order.couponCode})` : ''}`, `-${money(order.discountAmount)}`]]
       : []),
-    ['Tax', money(order.taxAmount)],
+    ['Handling', money(order.handlingAmount)],
+    ['Total before VAT', money(order.taxableAmount)],
+    [`VAT (${vatPct}%)`, money(order.taxAmount)],
     ['Shipping', money(order.shippingAmount)],
   ];
+  // A long coupon code can still wrap the "Discount (CODE)" label onto a
+  // second line even at this column width — advance by the label's actual
+  // rendered height (never less than one line) so the next row can never
+  // land on top of it.
   totals.forEach(([label, value]) => {
-    doc.fontSize(9).fillColor('#555').text(label, totalsLabelX, y, { width: totalsLabelWidth, align: 'left' });
+    doc.fontSize(9).fillColor('#555');
+    const labelHeight = doc.heightOfString(label, { width: totalsLabelWidth });
+    doc.text(label, totalsLabelX, y, { width: totalsLabelWidth, align: 'left' });
     doc.text(value, totalsValueX, y, { width: totalsValueWidth, align: 'right' });
-    y += 16;
+    y += Math.max(labelHeight, 12) + 4;
   });
 
   doc.fontSize(11).fillColor('#111');

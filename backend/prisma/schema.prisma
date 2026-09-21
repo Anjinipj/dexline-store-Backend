@@ -17,6 +17,17 @@ enum CouponType {
   FIXED
 }
 
+enum OrderNotificationType {
+  order_confirmed
+}
+
+enum OrderNotificationStatus {
+  queued
+  sending
+  sent
+  failed
+}
+
 // `pending_verification` customers have identical access to `active` ones
 // everywhere except the frontend's post-signup nudge screen — this only
 // gates the account's own verification-status display, never cart, wishlist,
@@ -156,6 +167,10 @@ model Product {
   category       Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   brandId        String
   brand          Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  // Treated as VAT-exclusive (net of tax) throughout checkout — see
+  // backend/src/config/pricing.js. No inclusive/exclusive marker existed
+  // before this field's checkout math was introduced; this is the documented
+  // convention, not a fact recovered from prior data.
   price          Decimal  @db.Decimal(10, 2)
   compareAtPrice Decimal? @db.Decimal(10, 2)
   images         String[] @default([])
@@ -237,6 +252,16 @@ model Order {
   status               String    @default("Pending Confirmation")
   subtotalAmount       Decimal   @db.Decimal(10, 2)
   discountAmount       Decimal   @db.Decimal(10, 2) @default(0)
+  // Flat per-order charge (see config/pricing.js), added before VAT.
+  // Defaults to 0 so orders placed before this column existed are left
+  // exactly as they were — never recomputed.
+  handlingAmount       Decimal   @db.Decimal(10, 2) @default(0)
+  // subtotalAmount - discountAmount + handlingAmount — the VAT base.
+  taxableAmount        Decimal   @db.Decimal(10, 2) @default(0)
+  // VAT rate actually applied at checkout, snapshotted per order so a later
+  // change to config/pricing.js never alters how a past order reads.
+  vatRate              Decimal   @db.Decimal(5, 4) @default(0)
+  // VAT amount (taxableAmount * vatRate, rounded to the nearest fils).
   taxAmount            Decimal   @db.Decimal(10, 2) @default(0)
   shippingAmount       Decimal   @db.Decimal(10, 2) @default(0)
   totalAmount          Decimal   @db.Decimal(10, 2)
@@ -254,10 +279,40 @@ model Order {
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
   invoice       Invoice?
+  notifications OrderNotification[]
 
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Transactional-outbox row for order-related emails. Created in the SAME
+// DB transaction as the status update that triggers it (see
+// orderService.updateOrderStatus), so a committed status change can never
+// silently lose its notification — a background poller
+// (notificationService.dispatchPending) picks up anything still `queued`
+// or due for retry and actually sends it. @@unique([orderId, type]) is the
+// idempotency guarantee: at most one row can ever exist per order+type, so
+// re-confirming, concurrent admin clicks, or the poller running twice can
+// never create a second send for the same event — only the explicit
+// admin "Resend" action reuses (resets) this same row.
+model OrderNotification {
+  id                String                   @id @default(uuid())
+  orderId           String
+  order             Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type              OrderNotificationType
+  status            OrderNotificationStatus  @default(queued)
+  attempts          Int                      @default(0)
+  maxAttempts       Int                      @default(5)
+  lastError         String                   @default("")
+  providerMessageId String                   @default("")
+  nextAttemptAt     DateTime                 @default(now())
+  sentAt            DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([orderId, type])
+  @@index([status, nextAttemptAt])
 }
 
 model Invoice {

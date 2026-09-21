@@ -46,14 +46,17 @@ function getTransporter() {
 
 async function sendMail({ to, subject, html, text }) {
   const t = getTransporter();
-  await t.sendMail({
+  const info = await t.sendMail({
     from: `"${verificationConfig.email.fromName}" <${verificationConfig.email.fromAddress}>`,
     to,
     subject,
     html,
     text,
   });
-  return { devMode };
+  // nodemailer's SMTP transport returns a provider messageId; the dev-mode
+  // stub returns none. Callers that need to record what was actually sent
+  // (see notificationService.js) use this instead of assuming success.
+  return { devMode, messageId: info?.messageId || '' };
 }
 
 module.exports = { sendMail };

@@ -14,6 +14,9 @@ function baseView(order) {
     })),
     subtotalAmount: toNumber(order.subtotalAmount),
     discountAmount: toNumber(order.discountAmount),
+    handlingAmount: toNumber(order.handlingAmount),
+    taxableAmount: toNumber(order.taxableAmount),
+    vatRate: toNumber(order.vatRate),
     taxAmount: toNumber(order.taxAmount),
     shippingAmount: toNumber(order.shippingAmount),
     totalAmount: toNumber(order.totalAmount),
@@ -38,8 +41,26 @@ function toView(order) {
   return mapId(baseView(order));
 }
 
+// Admin-only: the order-confirmation email's delivery state. Deliberately
+// omitted from the customer-facing toView — a customer has no reason to see
+// retry counts or provider errors for their own order.
+function confirmationEmailView(order) {
+  const notification = (order.notifications || []).find((n) => n.type === 'order_confirmed');
+  if (!notification) return null;
+  return {
+    status: notification.status,
+    attempts: notification.attempts,
+    maxAttempts: notification.maxAttempts,
+    lastError: notification.lastError || '',
+    sentAt: notification.sentAt,
+    nextAttemptAt: notification.nextAttemptAt,
+    updatedAt: notification.updatedAt,
+  };
+}
+
 // Admin view: adds the populated `customer` sub-object the admin UI reads
-// (order.customer?.name / order.customer?.email).
+// (order.customer?.name / order.customer?.email) and the confirmation
+// email's delivery status.
 function toAdminView(order) {
   if (!order) return order;
   const view = baseView(order);
@@ -51,6 +72,7 @@ function toAdminView(order) {
         ...(order.customer.addressLine1 !== undefined ? { address: buildAddress(order.customer, 'address') } : {}),
       }
     : undefined;
+  view.confirmationEmail = confirmationEmailView(order);
   return mapId(view);
 }
 

@@ -1,5 +1,7 @@
 const couponService = require('../services/couponService');
 const couponPresenter = require('../presenters/couponPresenter');
+const cartService = require('../services/cartService');
+const pricingService = require('../services/pricingService');
 
 async function listAllAdmin(req, res, next) {
   try {
@@ -46,11 +48,24 @@ async function remove(req, res, next) {
   }
 }
 
+// Previously trusted a client-sent `subtotal` for the min-order check (this
+// endpoint is preview-only, never the one that persists an order — see
+// orderService.createOrder for the actually-trusted path), but there is no
+// reason to accept a number the browser can set when the server can read
+// the user's real cart directly. Now it does, and also returns the full
+// handling+VAT breakdown through the same pricingService the cart and order
+// creation use, so the checkout preview never re-derives it client-side.
 async function validateCoupon(req, res, next) {
   try {
-    const { code, subtotal } = req.body;
-    const { coupon, discountAmount } = await couponService.findValidCoupon(code, Number(subtotal) || 0);
-    res.json({ valid: true, discountAmount, coupon: couponPresenter.toView(coupon) });
+    const { code } = req.body;
+    const items = await cartService.getCart(req.user.id);
+    const lineItems = items.map((item) => ({ price: item.product.price, quantity: item.quantity }));
+    const { itemsSubtotal } = pricingService.calculateOrderTotals(lineItems);
+
+    const { coupon, discountAmount } = await couponService.findValidCoupon(code, itemsSubtotal);
+    const totals = pricingService.calculateOrderTotals(lineItems, { discountAmount });
+
+    res.json({ valid: true, discountAmount, coupon: couponPresenter.toView(coupon), totals });
   } catch (err) {
     next(err);
   }

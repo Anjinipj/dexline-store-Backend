@@ -40,7 +40,7 @@ async function removeItem(req, res, next) {
 async function clearCart(req, res, next) {
   try {
     await cartService.clearCart(req.user.id);
-    res.json({ cart: { items: [] } });
+    res.json({ cart: cartPresenter.toView([]) });
   } catch (err) {
     next(err);
   }
